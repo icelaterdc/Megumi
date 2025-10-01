@@ -1,8 +1,10 @@
+// build.gradle.kts (repo kökünde)
 plugins {
-    id("com.android.application") version "8.1.1" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.10" apply false
+    // Root-level build dosyası genelde plugin tanımları içermez,
+    // plugin versiyonlarını settings.gradle.kts üzerinden yönetiyoruz.
+    // Burada boş bırakılması güvenlidir.
 }
 
-task clean(type: Delete) {
+tasks.register("clean", Delete::class) {
     delete(rootProject.buildDir)
 }
