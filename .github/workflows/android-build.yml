@@ -1,0 +1,62 @@
+name: Android build (assembleDebug) and save APK to output/
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PUSH_TO_REPO: 'false'  # set to 'true' if you want the action to commit APK to repo (not recommended)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper/
+          key: gradle-cache-${'{'}{ runner.os }}-${'{'}{ hashFiles('**/build.gradle.kts') }}
+          restore-keys: |
+            gradle-cache-${'{'}{ runner.os }}-
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew || true
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Create output dir and copy APK
+        run: |
+          mkdir -p output
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk output/app-debug.apk
+            ls -lh output || true
+          else
+            echo "APK not found at expected path" && exit 1
+          fi
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: output/app-debug.apk
+      - name: (Optional) Commit output/ to repo
+        if: env.PUSH_TO_REPO == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add output/app-debug.apk || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: add built debug apk to output/ [skip ci]" || true
+            git push origin HEAD:main || true
+          fi
