@@ -1,4 +1,4 @@
-name: Android build (assembleDebug) and save APK to output/
+name: Android build (system gradle) and save APK to output/
 
 on:
   workflow_dispatch:
@@ -9,43 +9,63 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PUSH_TO_REPO: 'false'  # set to 'true' if you want the action to commit APK to repo (not recommended)
+      PUSH_TO_REPO: 'false'  # 'true' yaparsan output/app-debug.apk repoya commit edilir (genelde önerilmez)
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Install system Gradle
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gradle
+          gradle -v
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
-            ~/.gradle/wrapper/
-          key: gradle-cache-${'{'}{ runner.os }}-${'{'}{ hashFiles('**/build.gradle.kts') }}
+            ~/.gradle/wrapper
+          key: gradle-cache-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.gradle.kts') }}
           restore-keys: |
-            gradle-cache-${'{'}{ runner.os }}-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew || true
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+            gradle-cache-${{ runner.os }}-
+
+      - name: Build debug APK (use system gradle)
+        run: |
+          # Build the app module using the system gradle to avoid ./gradlew recursion issues
+          gradle :app:assembleDebug --no-daemon --stacktrace
+        timeout-minutes: 30
+
       - name: Create output dir and copy APK
         run: |
           mkdir -p output
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk output/app-debug.apk
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            cp "$APK_PATH" output/app-debug.apk
+            echo "APK copied to output/app-debug.apk"
             ls -lh output || true
           else
-            echo "APK not found at expected path" && exit 1
+            echo "APK not found at expected path: $APK_PATH"
+            echo "Contents of app/build/outputs/apk/debug/:"
+            ls -la app/build/outputs/apk/debug/ || true
+            exit 1
           fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
           path: output/app-debug.apk
+
       - name: (Optional) Commit output/ to repo
         if: env.PUSH_TO_REPO == 'true'
         env:
@@ -57,6 +77,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "ci: add built debug apk to output/ [skip ci]" || true
-            git push origin HEAD:main || true
+            git commit -m "ci: add built debug apk to output/ [skip ci]" || echo "commit failed"
+            git push origin HEAD:main || echo "push failed"
           fi
