@@ -1,4 +1,4 @@
-name: Android build (system gradle) and save APK to output/
+name: Android build (download Gradle) and save APK to output/
 
 on:
   workflow_dispatch:
@@ -9,7 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PUSH_TO_REPO: 'false'  # 'true' yaparsan output/app-debug.apk repoya commit edilir (genelde önerilmez)
+      PUSH_TO_REPO: 'false'
+      GRADLE_VERSION: '8.4.1'   # gerekirse daha yeni bir sürüm seçebilirsin
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -23,11 +24,23 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install system Gradle
+      - name: Install required packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y gradle
-          gradle -v
+          sudo apt-get install -y unzip curl
+
+      - name: Download Gradle
+        run: |
+          echo "Downloading Gradle ${GRADLE_VERSION}..."
+          curl -sSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o /tmp/gradle.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt/
+          sudo ln -sfn /opt/gradle-${GRADLE_VERSION} /opt/gradle
+          echo "Gradle installed to /opt/gradle"
+          /opt/gradle/bin/gradle -v
+
+      - name: Add Gradle to PATH
+        run: |
+          echo "##[add-path]/opt/gradle/bin" >> $GITHUB_PATH
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -39,9 +52,10 @@ jobs:
           restore-keys: |
             gradle-cache-${{ runner.os }}-
 
-      - name: Build debug APK (use system gradle)
+      - name: Build debug APK
         run: |
-          # Build the app module using the system gradle to avoid ./gradlew recursion issues
+          echo "Building :app:assembleDebug"
+          # Run from repo root; we rely on modern Gradle (downloaded above)
           gradle :app:assembleDebug --no-daemon --stacktrace
         timeout-minutes: 30
 
@@ -55,8 +69,8 @@ jobs:
             ls -lh output || true
           else
             echo "APK not found at expected path: $APK_PATH"
-            echo "Contents of app/build/outputs/apk/debug/:"
-            ls -la app/build/outputs/apk/debug/ || true
+            echo "Dumping build outputs for debug:"
+            ls -la app/build || true
             exit 1
           fi
 
@@ -77,6 +91,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "ci: add built debug apk to output/ [skip ci]" || echo "commit failed"
-            git push origin HEAD:main || echo "push failed"
+            git commit -m "ci: add built debug apk to output/ [skip ci]" || true
+            git push origin HEAD:main || true
           fi
