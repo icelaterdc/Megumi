@@ -1,8 +1,6 @@
-// build.gradle.kts (repo kökünde)
+// build.gradle.kts (root)
 plugins {
-    // Root-level build dosyası genelde plugin tanımları içermez,
-    // plugin versiyonlarını settings.gradle.kts üzerinden yönetiyoruz.
-    // Burada boş bırakılması güvenlidir.
+    // Root-level plugin'lere gerek yok; pluginManagement settings ile yönetiliyor
 }
 
 tasks.register("clean", Delete::class) {
