@@ -1,3 +1,4 @@
+// app/build.gradle.kts
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -17,7 +18,6 @@ android {
 
     buildTypes {
         debug {
-            // debug build - no signing required for CI assembleDebug
             applicationIdSuffix = ".debug"
         }
         release {
@@ -41,8 +41,9 @@ android {
 }
 
 repositories {
-    mavenCentral()
-    maven { url = uri("https://jitpack.io") }
+    // DİKKAT: Eğer settings.gradle.kts'te repositoriesMode = FAIL_ON_PROJECT_REPOS
+    // olarak ayarlandıysa burayı **boş bırak** veya tamamen kaldır.
+    // Eğer hata alırsan burayı SIL ve gerekli reposu settings.gradle.kts'e taşı.
 }
 
 dependencies {
@@ -52,6 +53,6 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.1.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.3")
 
-    // KizzyRPC via JitPack (used for Rich Presence). NOTE: Using user account tokens may violate Discord TOS.
+    // KizzyRPC via JitPack (örnek)
     implementation("com.github.dead8309:KizzyRPC:1.0.71")
 }
