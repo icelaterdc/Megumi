@@ -1,4 +1,4 @@
-name: Android build (robust Gradle download + fallback) and save APK to output/
+name: Android build (using Gradle wrapper) and save APK to output/
 
 on:
   workflow_dispatch:
@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUSH_TO_REPO: 'false'
-      GRADLE_VERSION: '8.4'   # istersen 8.5 vb. ile test edebilirsin
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -24,58 +23,19 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install required packages
+      - name: Ensure wrapper is executable
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip curl ca-certificates
-
-      - name: Download Gradle with retries and verify zip
-        run: |
-          GRADLE_ZIP="/tmp/gradle-${GRADLE_VERSION}-bin.zip"
-          GRADLE_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          echo "Attempting to download Gradle from: $GRADLE_URL"
-          # try robust curl with retries
-          curl --fail -fSL --retry 6 --retry-delay 5 -o "$GRADLE_ZIP" "$GRADLE_URL" || true
-          if [ ! -s "$GRADLE_ZIP" ]; then
-            echo "Gradle zip missing or empty: $GRADLE_ZIP"
-            ls -l /tmp || true
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            echo "Using project gradlew wrapper"
+          else
+            echo "Gradle wrapper not found; failing the build. Please add gradle wrapper to repo (instructions in README)."
             exit 2
           fi
-          # quick sanity check of zip file
-          if unzip -t "$GRADLE_ZIP" > /tmp/gradle-unzip-check.txt 2>&1; then
-            echo "Gradle zip verified ok"
-            sudo unzip -q "$GRADLE_ZIP" -d /opt/
-            sudo ln -sfn /opt/gradle-${GRADLE_VERSION} /opt/gradle
-          else
-            echo "Gradle zip verification FAILED. Dumping first 200 bytes for debug:"
-            head -c 200 "$GRADLE_ZIP" | hexdump -C || true
-            echo "Will attempt fallback to apt-get gradle (may be older version)."
-            sudo apt-get update
-            sudo apt-get install -y gradle || { echo "apt-get gradle failed"; exit 3; }
-          fi
-          /opt/gradle/bin/gradle -v || gradle -v || true
 
-      - name: Ensure Gradle on PATH
+      - name: Build debug APK with wrapper
         run: |
-          if [ -d /opt/gradle/bin ]; then
-            echo "/opt/gradle/bin" >> $GITHUB_PATH
-          fi
-          # if system gradle is present it will be available as 'gradle'
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-cache-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.gradle.kts') }}
-          restore-keys: |
-            gradle-cache-${{ runner.os }}-
-
-      - name: Build debug APK
-        run: |
-          echo "Building :app:assembleDebug using 'gradle' on PATH"
-          gradle :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
         timeout-minutes: 30
 
       - name: Create output dir and copy APK
@@ -84,7 +44,6 @@ jobs:
           APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
           if [ -f "$APK_PATH" ]; then
             cp "$APK_PATH" output/app-debug.apk
-            echo "APK copied to output/app-debug.apk"
             ls -lh output || true
           else
             echo "APK not found at expected path: $APK_PATH"
