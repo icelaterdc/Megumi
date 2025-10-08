@@ -1,23 +1,25 @@
-// settings.gradle.kts (repo köküne koyup mevcut dosyanın yerine yaz)
+// settings.gradle.kts
 pluginManagement {
     repositories {
-        // pluginleri buradan çözümle (Android plugin Google Maven'da olduğu için google() burada önemli)
         gradlePluginPortal()
         mavenCentral()
         google()
+        maven { url = uri("https://jitpack.io") } // JitPack (KizzyRPC vb. için)
     }
     plugins {
-        // (opsiyonel) burada plugin versiyonlarını da sabitleyebilirsin
+        // plugin versiyonlarını burada sabitle (opsiyonel)
         id("com.android.application") version "8.1.1" apply false
         id("org.jetbrains.kotlin.android") version "1.9.10" apply false
     }
 }
 
 dependencyResolutionManagement {
+    // Proje içi repositories eklenmesine izin vermiyoruz — hepsini burada tanımla
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") } // gerekli özel repository'leri buraya ekle
     }
 }
 
